@@ -1,0 +1,10 @@
+/build
+/dist
+/test/build
+/*.so
+/*.dylib
+/*.dll
+.DS_Store
+*.zip
+*.rar
+*_out.txt

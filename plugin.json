@@ -1,0 +1,79 @@
+{
+  "slug": "Hutara",
+  "name": "Hutara",
+  "version": "2.4.0",
+  "license": "GPL-3.0-only",
+  "brand": "Hutara",
+  "author": "Hutara",
+  "authorEmail": "hutaraa@gmail.com",
+  "authorUrl": "",
+  "pluginUrl": "https://github.com/hutara/Hutara-modules",
+  "manualUrl": "https://github.com/hutara/Hutara-modules",
+  "sourceUrl": "https://github.com/hutara/Hutara-modules",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "FmOperator",
+      "name": "Hutara PsyOperator",
+      "description": "Psychedelic Synthesizer,VCO with FM Synthesis, Resample and Waveshaper ",
+      "tags": [
+        "Oscillator",
+        "Waveshaper"
+      ]
+    },
+    {
+      "slug": "Hutara_Random_CV",
+      "name": "Hutara Random",
+      "description": "Sample&Hold and Random Cv/Gate",
+      "tags": [
+        "Random",
+        "Envelope generator",
+        "Sample and hold"
+      ]
+    },
+    {
+      "slug": "PsyOperatorFX",
+      "name": "Hutara PsyOperator FX",
+      "description": "Modulation driven psychedelic performance processor: sustained varispeed tape engine with wow, flutter, tape stop, freeze and reverse, granular pitch and time engine, clocked slicer (1/4 to 1/128 incl. triplets), 16-step trance gate sequencer with per-step accent, swing and 1-8 ratchet, scatter time displacement, drive, tone and stereo width, with a visible modulation bus, bounded random modulation and control outputs (trance gate, end-of-slice trigger, clock thru, envelope follower)",
+      "keywords": [
+        "psytrance",
+        "darkpsy",
+        "tape",
+        "varispeed",
+        "granular",
+        "stutter",
+        "freeze",
+        "glitch"
+      ],
+      "tags": [
+        "Effect",
+        "Granular",
+        "Distortion",
+        "Delay"
+      ]
+    },
+    {
+      "slug": "PsyKick",
+      "name": "Hutara VOIDKICK",
+      "description": "Dedicated psytrance kick, sub and rolling bass voice: two stage exponential pitch glide with curve control, Chebyshev harmonic body morph, band limited click with noise spit and gnarl, asymmetric drive, fold and forest shapers with a void macro, separate kick and bass outputs, measured period 16th note bass grid with a stepped glide, V/OCT tracking, accent input, envelope and end of cycle outputs. Frozen legacy engine, see docs/PSYKICK.md; the next generation engine is the separate PsyKickMK2 model",
+      "keywords": [
+        "psytrance",
+        "darkpsy",
+        "forest",
+        "hi-tech",
+        "kick",
+        "bass drum",
+        "rolling bass",
+        "pitch envelope",
+        "drum"
+      ],
+      "tags": [
+        "Drum",
+        "Oscillator",
+        "Envelope generator",
+        "Waveshaper"
+      ]
+    }
+  ]
+}
