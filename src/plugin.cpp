@@ -10,9 +10,9 @@ void init(Plugin* p) {
     
   
     p->addModel(modelFmOperator);         
-    p->addModel(modelPsyOperatorFX);
+    // p->addModel(modelPsyOperatorFX);
     p->addModel(modelHutara_Random_CV);
-    p->addModel(modelPsyKick);        
+    // p->addModel(modelPsyKick);        
 
 
 }
