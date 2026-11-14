@@ -60,10 +60,10 @@ struct FmEngineDisplay : TransparentWidget {
 	}
 	static NVGcolor segColor(int seg) {
 		switch (seg) {
-			case 0: return nvgRGBA(  0, 255, 245, 255);  // MODE  → Bright Cyan
-			case 1: return nvgRGBA(  0, 250, 180, 255);  // ROUTE → Deep Teal
-			case 2: return nvgRGBA(100, 255, 255, 255);  // SYNC  → Light Aqua
-			case 3: return nvgRGBA(  0, 255, 255, 255);  // CHAIN → Mid Cyan
+			case 0: return nvgRGBA(  0, 255, 245, 255);
+			case 1: return nvgRGBA(  0, 250, 180, 255);
+			case 2: return nvgRGBA(100, 255, 255, 255);
+			case 3: return nvgRGBA(  0, 255, 255, 255);
 		}
 		return nvgRGBA(255, 255, 255, 255);
 	}
@@ -142,7 +142,7 @@ struct FmEngineDisplay : TransparentWidget {
 		return 3;
 	}
 
-	void onHover(const event::Hover& e) override {
+	void onHover(const HoverEvent& e) override {
 		TransparentWidget::onHover(e);
 		if (!module) return;
 		if (draggingNode >= 0 || syncDragActive) return;
@@ -155,7 +155,7 @@ struct FmEngineDisplay : TransparentWidget {
 		if (seg >= 0) focusedSeg = seg;
 	}
 
-	void onButton(const event::Button& e) override {
+	void onButton(const ButtonEvent& e) override {
 		TransparentWidget::onButton(e);
 		if (!module) return;
 
@@ -231,7 +231,7 @@ struct FmEngineDisplay : TransparentWidget {
 		}
 	}
 
-	void onDragMove(const event::DragMove& e) override {
+	void onDragMove(const DragMoveEvent& e) override {
 		if (!module) return;
 		if (syncDragActive) {
 			syncDragAccumY += e.mouseDelta.y;
@@ -250,7 +250,7 @@ struct FmEngineDisplay : TransparentWidget {
 		e.consume(this);
 	}
 
-	void onDragEnd(const event::DragEnd& e) override {
+	void onDragEnd(const DragEndEvent& e) override {
 		(void)e;
 		draggingNode = -1;
 		dragAccum = Vec(0.f, 0.f);
@@ -710,7 +710,7 @@ struct SubWaveDisplay : TransparentWidget {
 		return mm2px(Vec(BTN_W_MM, 0.f)).x;
 	}
 
-	void onHover(const event::Hover& e) override {
+	void onHover(const HoverEvent& e) override {
 		TransparentWidget::onHover(e);
 		const float bwp = btnWidthPx();
 		if (e.pos.x < bwp) hoverBtn = -1;
@@ -718,15 +718,15 @@ struct SubWaveDisplay : TransparentWidget {
 		else hoverBtn = 0;
 	}
 
-	void onButton(const event::Button& e) override {
+	void onButton(const ButtonEvent& e) override {
 		TransparentWidget::onButton(e);
 		if (!module) return;
 		if (e.action != GLFW_PRESS || e.button != GLFW_MOUSE_BUTTON_LEFT) return;
 
 		const float bwp = btnWidthPx();
 		int dir = 0;
-		if (e.pos.x < bwp) dir = 1;                      
-		else if (e.pos.x > box.size.x - bwp) dir = -1;    
+		if (e.pos.x < bwp) dir = 1;
+		else if (e.pos.x > box.size.x - bwp) dir = -1;
 		if (dir == 0) return;
 
 		const int cur = clamp(
@@ -807,7 +807,7 @@ struct SubWaveDisplay : TransparentWidget {
 						bh * 0.28f, false,
 						hovered ? nvgRGBA(160, 255, 180, 255)
 								: nvgRGBA(120, 220, 150, 200));
-					}
+		}
 
 		{
 			const float bx = w - bwp + 0.5f, by = 0.5f;
@@ -909,9 +909,9 @@ struct PsyDisplay : TransparentWidget {
 	float prevValues[FmOperator::PARAMS_LEN] = {0.f};
 	bool  prevInitialized = false;
 	bool  lastPitchStepMode = false;
-
-	static constexpr float HOLD_TIME       = 3.5f;
-	static constexpr float FADE_TIME       = 1.0f;
+	int   scanCounter_ = 0;
+	static constexpr float HOLD_TIME        = 3.5f;
+	static constexpr float FADE_TIME        = 1.0f;
 	static constexpr float CHANGE_THRESHOLD = 0.002f;
 
 	static constexpr float SIZE_MM  = 26.f;
@@ -923,8 +923,35 @@ struct PsyDisplay : TransparentWidget {
 		box.size = Vec(d, d);
 	}
 
-	static const std::array<int, 62>& watchedParams() {
-		static const std::array<int, 62> watched = {{
+	// ============================================================
+	// ضریب دامنهٔ نمایش بر اساس ولوم خروجی
+	// ============================================================
+	float displayAmpScale() const {
+		if (!module) return 1.f;
+
+		const float vSine = clamp(module->params[FmOperator::VOLUME_PARAM_SINE].getValue(),     0.f, 1.f);
+		const float vSaw  = clamp(module->params[FmOperator::VOLUME_PARAM_SAW].getValue(),      0.f, 1.f);
+		const float vTri  = clamp(module->params[FmOperator::VOLUME_PARAM_TRIANGLE].getValue(), 0.f, 1.f);
+		const float vSqr  = clamp(module->params[FmOperator::VOLUME_PARAM_SQUARE].getValue(),   0.f, 1.f);
+
+		const float avgVol = (vSine + vSaw + vTri + vSqr) * 0.25f;
+
+		// اگر همهٔ ولوم‌ها صفر باشند، نمایش نباید خالی شود — حداقل ۳۰٪ دامنه
+		// تا کاربر بتواند موج را ببیند و بفهمد ولوم صفر است.
+		const float volFactor = clamp(avgVol, 0.02f, 1.f);   // کف ۲٪
+
+		// MASTER_MACRO را فقط اگر بزرگ‌تر از صفر باشد اعمال کن
+		// (اکثر پچ‌ها master=0 دارند و نباید نمایش را بکشد)
+		const float master = clamp(module->params[FmOperator::MASTER_MACRO_PARAM].getValue(), 0.f, 1.f);
+		const float masterFactor = (master > 0.01f) ? master : 1.f;
+
+		const float scale = std::sqrt(volFactor * masterFactor);
+		return clamp(scale, 0.05f, 1.f);   // هرگز کمتر از ۵٪
+	}
+
+	// SUB_WAVE_PARAM removed from watched list (62 → 61).
+	static const std::array<int, 61>& watchedParams() {
+		static const std::array<int, 61> watched = {{
 			FmOperator::PITCH_STEP_MODE_PARAM,
 			FmOperator::PITCH_BUS_MODE_PARAM,
 			FmOperator::FM_MODE_PARAM,
@@ -979,7 +1006,6 @@ struct PsyDisplay : TransparentWidget {
 			FmOperator::FM_MOD_PITCH_PARAM,
 			FmOperator::FM_MOD_PSY_CV_DEPTH_PARAM,
 			FmOperator::FM_MOD_MORPH_PARAM,
-			FmOperator::SUB_WAVE_PARAM,
 			FmOperator::SUB_FREQ_MODE_PARAM,
 			FmOperator::SUB_PITCH_PARAM,
 			FmOperator::SUB_PHASE_PARAM,
@@ -994,6 +1020,7 @@ struct PsyDisplay : TransparentWidget {
 	void step() override {
 		TransparentWidget::step();
 		if (!module) return;
+
 		float dt = APP->window->getFrameTime();
 		if (dt <= 0.f || !std::isfinite(dt)) dt = 1.f / 60.f;
 		if (dt > 0.1f) dt = 0.1f;
@@ -1005,32 +1032,39 @@ struct PsyDisplay : TransparentWidget {
 			prevInitialized = true;
 		}
 
-		const auto& watched = watchedParams();
-		int changedId = -1;
-		float changedValue = 0.f;
-		for (size_t i = 0; i < watched.size(); i++) {
-			const int id = watched[i];
-			const float cur = module->params[id].getValue();
-			if (std::abs(cur - prevValues[id]) > CHANGE_THRESHOLD) {
-				prevValues[id] = cur;
-				changedId = id;
-				changedValue = cur;
-				break;
+		// ── اسکن ۶۱ پارامتر فقط هر ۲ فریم (۳۰Hz) ──
+		static constexpr int SCAN_DIVIDER = 2;
+		if (++scanCounter_ >= SCAN_DIVIDER) {
+			scanCounter_ = 0;
+
+			const auto& watched = watchedParams();
+			int changedId = -1;
+			float changedValue = 0.f;
+			for (size_t i = 0; i < watched.size(); i++) {
+				const int id = watched[i];
+				const float cur = module->params[id].getValue();
+				if (std::abs(cur - prevValues[id]) > CHANGE_THRESHOLD) {
+					prevValues[id] = cur;
+					changedId = id;
+					changedValue = cur;
+					break;
+				}
+			}
+
+			if (changedId >= 0) {
+				const bool psm =
+					module->params[FmOperator::PITCH_STEP_MODE_PARAM].getValue() > 0.5f;
+				shownParamId = changedId;
+				shownValue = changedValue;
+				lastPitchStepMode = psm;
+				displayAge = 0.f;
+				textAlpha = 1.f;
 			}
 		}
 
-		if (changedId >= 0) {
-			const bool psm =
-				module->params[FmOperator::PITCH_STEP_MODE_PARAM].getValue() > 0.5f;
-			shownParamId = changedId;
-			shownValue = changedValue;
-			lastPitchStepMode = psm;
-			displayAge = 0.f;
-			textAlpha = 1.f;
-		}
-
+		// ── هر فریم برای انیمیشن fade ──
 		if (shownParamId >= FmOperator::PITCH_PARAM_SINE &&
-		    shownParamId <= FmOperator::PITCH_PARAM_SQUARE) {
+			shownParamId <= FmOperator::PITCH_PARAM_SQUARE) {
 			const bool psm =
 				module->params[FmOperator::PITCH_STEP_MODE_PARAM].getValue() > 0.5f;
 			if (psm != lastPitchStepMode) {
@@ -1068,21 +1102,26 @@ struct PsyDisplay : TransparentWidget {
 		const float R  = std::min(cx, cy) - 1.f;
 		drawBackground(args.vg, cx, cy, R);
 		drawStatusDots(args.vg, cx, cy, R);
-		drawSumRing(args.vg, cx, cy, R);
 		drawQuadWaves(args.vg, cx, cy, R);
 		drawCenterWave(args.vg, cx, cy, R);
 		drawCenterText(args.vg, cx, cy, R);
 	}
 
 	void drawBackground(NVGcontext* vg, float cx, float cy, float R) {
+		{
+			NVGpaint g = nvgRadialGradient(vg, cx, cy, R * 0.7f, R,
+				nvgRGBA(0, 255, 120, 0), nvgRGBA(0, 255, 120, 12));
+			nvgBeginPath(vg); nvgCircle(vg, cx, cy, R);
+			nvgFillPaint(vg, g); nvgFill(vg);
+		}
 		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R);
 		nvgFillColor(vg, nvgRGBA(6, 8, 12, 235)); nvgFill(vg);
-		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R * 0.94f);
+		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R * 0.95f);
 		nvgFillColor(vg, nvgRGBA(2, 3, 5, 240)); nvgFill(vg);
 		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R);
 		nvgStrokeColor(vg, nvgRGBA(255, 160, 60, 150));
 		nvgStrokeWidth(vg, 1.2f); nvgStroke(vg);
-		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R * 0.94f);
+		nvgBeginPath(vg); nvgCircle(vg, cx, cy, R * 0.95f);
 		nvgStrokeColor(vg, nvgRGBA(255, 160, 60, 40));
 		nvgStrokeWidth(vg, 0.6f); nvgStroke(vg);
 	}
@@ -1099,8 +1138,12 @@ struct PsyDisplay : TransparentWidget {
 			{ FmOperator::CV_MODE_PARAM,          nvgRGBA(180, 100, 255, 255) },
 			{ FmOperator::TURBULENCE_MODE_PARAM,  nvgRGBA(255, 100, 180, 255) },
 		};
-		const float dotR = R * 0.92f;
-		const float dotSize = 1.6f;
+		const float dotR = R * 0.93f;
+		const float dotSize = 1.9f;
+		const float volScale = displayAmpScale();
+		if (volScale < 0.001f) return; 
+		const float volDim = 0.35f + 0.65f * volScale;   // نقاط با ولوم کم‌رنگ‌تر می‌شوند
+
 		for (int i = 0; i < 8; i++) {
 			const float angle = -M_PI * 0.5f + 2.f * (float)M_PI * i / 8.f;
 			const float x = cx + dotR * std::cos(angle);
@@ -1119,62 +1162,26 @@ struct PsyDisplay : TransparentWidget {
 				b = clamp(module->params[pid].getValue(), 0.f, 1.f);
 			}
 			NVGcolor col = dots[i].color;
-			col.a = 0.25f + 0.75f * b;
+			col.a = (0.25f + 0.75f * b) * volDim;
 			nvgBeginPath(vg); nvgCircle(vg, x, y, dotSize * 2.2f);
-			NVGcolor glowCol = col; glowCol.a = 0.15f * b;
+			NVGcolor glowCol = col; glowCol.a = 0.15f * b * volDim;
 			nvgFillColor(vg, glowCol); nvgFill(vg);
 			nvgBeginPath(vg); nvgCircle(vg, x, y, dotSize);
 			nvgFillColor(vg, col); nvgFill(vg);
 		}
 	}
 
-	void drawSumRing(NVGcontext* vg, float cx, float cy, float R) {
-		const int N = 128;
-		const float rMin = R * 0.72f, rMax = R * 0.90f;
-		const float rMid = (rMin + rMax) * 0.5f;
-		const float rAmp = (rMax - rMin) * 0.5f;
-		const int ss = FmOperator::WAVE_SNAPSHOT_SIZE;
-		const float* buf = module->snapSub;   // ← از snapSum به snapSub تغییر کرد
-		float peak = 0.f;
-		for (int i = 0; i < ss; i++) {
-			const float a = std::abs(buf[i]);
-			if (a > peak) peak = a;
-		}
-		const float gain = (peak > 0.02f) ? (0.65f / std::max(peak, 0.05f)) : 1.f;
-		nvgBeginPath(vg);
-		for (int i = 0; i <= N; i++) {
-			const int ii = i % N;
-			const int idx = (ii * ss) / N;
-			float s = clamp(buf[idx] * gain, -1.f, 1.f);
-			const float ang = -M_PI * 0.5f + 2.f * (float)M_PI * ii / N;
-			const float r = rMid + s * rAmp;
-			const float x = cx + r * std::cos(ang);
-			const float y = cy + r * std::sin(ang);
-			if (i == 0) nvgMoveTo(vg, x, y); else nvgLineTo(vg, x, y);
-		}
-		nvgClosePath(vg);
-		nvgStrokeColor(vg, nvgRGBA(20, 100, 20, 90));
-		nvgStrokeWidth(vg, 3.0f); nvgStroke(vg);
-		nvgBeginPath(vg);
-		for (int i = 0; i <= N; i++) {
-			const int ii = i % N;
-			const int idx = (ii * ss) / N;
-			float s = clamp(buf[idx] * gain, -1.f, 1.f);
-			const float ang = -M_PI * 0.5f + 2.f * (float)M_PI * ii / N;
-			const float r = rMid + s * rAmp;
-			const float x = cx + r * std::cos(ang);
-			const float y = cy + r * std::sin(ang);
-			if (i == 0) nvgMoveTo(vg, x, y); else nvgLineTo(vg, x, y);
-		}
-		nvgClosePath(vg);
-		nvgStrokeColor(vg, nvgRGBA(0, 200, 40, 240));
-		nvgStrokeWidth(vg, 1.1f); nvgStroke(vg);
-	}
-
+	// ============================================================
+	// ۴ موج چهارربعی — با مقیاس ولوم
+	// ============================================================
 	void drawQuadWaves(NVGcontext* vg, float cx, float cy, float R) {
-		const float rMin = R * 0.44f, rMax = R * 0.74f;
+		const float rMin = R * 0.42f, rMax = R * 0.92f;
 		const float rMid = (rMin + rMax) * 0.5f;
 		const float rAmp = (rMax - rMin) * 0.5f;
+
+		const float volScale = displayAmpScale();
+		if (volScale < 0.01f) return;   // سکوت کامل
+
 		struct Quad { float a0, a1; const float* buf; NVGcolor color; };
 		const Quad quads[4] = {
 			{ -M_PI*0.5f, 0.f,        module->snapSine,   nvgRGBA( 60, 255, 255, 125) },
@@ -1184,6 +1191,8 @@ struct PsyDisplay : TransparentWidget {
 		};
 		const int N = 48;
 		const int ss = FmOperator::WAVE_SNAPSHOT_SIZE;
+		const float effAmp = rAmp * volScale;
+
 		for (int q = 0; q < 4; q++) {
 			const float* buf = quads[q].buf;
 			float peak = 0.f;
@@ -1191,43 +1200,48 @@ struct PsyDisplay : TransparentWidget {
 				const float a = std::abs(buf[i]);
 				if (a > peak) peak = a;
 			}
-			const float gain = (peak > 0.02f) ? (0.55f / std::max(peak, 0.05f)) : 1.f;
-			{
-				NVGcolor glow = quads[q].color; glow.a = 0.22f;
-				nvgBeginPath(vg);
-				for (int i = 0; i <= N; i++) {
-					const int ii = i % N;
-					const int idx = (ii * ss) / N;
-					float s = clamp(buf[idx] * gain, -1.f, 1.f);
-					const float t   = (float)ii / N;
-					const float ang = quads[q].a0 + (quads[q].a1 - quads[q].a0) * t;
-					const float r = rMid + s * rAmp;
-					const float x = cx + r * std::cos(ang);
-					const float y = cy + r * std::sin(ang);
-					if (i == 0) nvgMoveTo(vg, x, y); else nvgLineTo(vg, x, y);
-				}
-				nvgStrokeColor(vg, glow); nvgStrokeWidth(vg, 2.5f); nvgStroke(vg);
-			}
+			const float gain = (peak > 0.02f) ? (1.0f / std::max(peak, 0.05f)) : 1.f;
+
 			nvgBeginPath(vg);
 			for (int i = 0; i <= N; i++) {
 				const int ii = i % N;
 				const int idx = (ii * ss) / N;
-				float s = clamp(buf[idx] * gain, -1.f, 1.f);
-				const float t   = (float)ii / N;
+				const float s = clamp(buf[idx] * gain, -1.f, 1.f);
+				const float t = (float)ii / N;
 				const float ang = quads[q].a0 + (quads[q].a1 - quads[q].a0) * t;
-				const float r = rMid + s * rAmp;
+				const float r = rMid + s * effAmp;
 				const float x = cx + r * std::cos(ang);
 				const float y = cy + r * std::sin(ang);
 				if (i == 0) nvgMoveTo(vg, x, y); else nvgLineTo(vg, x, y);
 			}
-			nvgStrokeColor(vg, quads[q].color);
-			nvgStrokeWidth(vg, 0.7f); nvgStroke(vg);
+			nvgLineJoin(vg, NVG_ROUND);
+			nvgLineCap(vg, NVG_ROUND);
+
+			// glow
+			NVGcolor glow = quads[q].color; glow.a = 0.22f * volScale;
+			nvgStrokeColor(vg, glow);
+			nvgStrokeWidth(vg, 2.5f);
+			nvgStroke(vg);
+
+			// خط اصلی — alpha با ولوم کم‌رنگ‌تر
+			NVGcolor col = quads[q].color;
+			col.a = 0.4f + 0.6f * volScale;
+			nvgStrokeColor(vg, col);
+			nvgStrokeWidth(vg, 0.7f);
+			nvgStroke(vg);
 		}
 	}
 
+	// ============================================================
+	// موج مرکزی — با مقیاس ولوم
+	// ============================================================
 	void drawCenterWave(NVGcontext* vg, float cx, float cy, float R) {
 		const float alpha = clamp(1.f - textAlpha, 0.f, 1.f);
 		if (alpha < 0.02f) return;
+
+		const float volScale = displayAmpScale();
+		if (volScale < 0.01f) return;
+
 		const int ss = FmOperator::WAVE_SNAPSHOT_SIZE;
 		const float* buf = module->snapSum;
 		float peak = 0.f;
@@ -1236,34 +1250,44 @@ struct PsyDisplay : TransparentWidget {
 			if (a > peak) peak = a;
 		}
 		const float gain = (peak > 0.02f) ? (0.85f / std::max(peak, 0.05f)) : 1.f;
-		const float w = R * 0.66f;
-		const float h = R * 0.26f;
+		const float w  = R * 0.72f;
+		const float h  = R * 0.30f * volScale;     // ← ارتفاع با ولوم
 		const float x0 = cx - w * 0.5f;
+
+		// خط مرکزی
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, x0, cy);
 		nvgLineTo(vg, x0 + w, cy);
 		nvgStrokeColor(vg, nvgRGBA(0, 255, 100, (int)(60 * alpha)));
-		nvgStrokeWidth(vg, 0.5f); nvgStroke(vg);
+		nvgStrokeWidth(vg, 0.5f);
+		nvgStroke(vg);
+
+		// مسیر موج
 		nvgBeginPath(vg);
 		for (int i = 0; i < ss; i++) {
-			const float t = (float)i / (ss - 1);
+			const float t  = (float)i / (ss - 1);
 			const float px = x0 + t * w;
-			const float s = clamp(buf[i] * gain, -1.f, 1.f);
+			const float s  = clamp(buf[i] * gain, -1.f, 1.f);
 			const float py = cy - s * h;
-			if (i == 0) nvgMoveTo(vg, px, py); else nvgLineTo(vg, px, py);
+			if (i == 0) nvgMoveTo(vg, px, py);
+			else        nvgLineTo(vg, px, py);
 		}
-		nvgStrokeColor(vg, nvgRGBA(20, 255, 80, (int)(100 * alpha)));
-		nvgStrokeWidth(vg, 2.5f); nvgStroke(vg);
-		nvgBeginPath(vg);
-		for (int i = 0; i < ss; i++) {
-			const float t = (float)i / (ss - 1);
-			const float px = x0 + t * w;
-			const float s = clamp(buf[i] * gain, -1.f, 1.f);
-			const float py = cy - s * h;
-			if (i == 0) nvgMoveTo(vg, px, py); else nvgLineTo(vg, px, py);
-		}
+		nvgLineJoin(vg, NVG_ROUND);
+		nvgLineCap(vg, NVG_ROUND);
+
+		// سایهٔ glow — alpha با ولوم
+		nvgSave(vg);
+		nvgStrokeColor(vg, nvgRGBA(20, 255, 80, (int)(100 * alpha * volScale)));
+		nvgStrokeWidth(vg, 2.5f);
+		nvgStroke(vg);
+		nvgRestore(vg);
+
+		// خط اصلی
+		nvgSave(vg);
 		nvgStrokeColor(vg, nvgRGBA(0, 255, 100, (int)(240 * alpha)));
-		nvgStrokeWidth(vg, 1.1f); nvgStroke(vg);
+		nvgStrokeWidth(vg, 1.1f);
+		nvgStroke(vg);
+		nvgRestore(vg);
 	}
 
 	void drawCenterText(NVGcontext* vg, float cx, float cy, float R) {
@@ -1279,15 +1303,15 @@ struct PsyDisplay : TransparentWidget {
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		const float a = clamp(textAlpha, 0.f, 1.f);
 		const char* name = FmOperator::shortParamName(shownParamId);
-		nvgFontSize(vg, 6.5f);
+		nvgFontSize(vg, 9.5f);
 		nvgFillColor(vg, nvgRGBA(0, 255, 70, (int)(255 * a)));
-		nvgText(vg, cx, cy - 6.5f, name, nullptr);
+		nvgText(vg, cx, cy - 7.5f, name, nullptr);
 		const bool psm =
 			module->params[FmOperator::PITCH_STEP_MODE_PARAM].getValue() > 0.5f;
 		std::string val = module->shortValueText(shownParamId, shownValue, psm);
-		nvgFontSize(vg, 11.f);
+		nvgFontSize(vg, 13.f);
 		nvgFillColor(vg, nvgRGBA(0, 255, 100, (int)(240 * a)));
-		nvgText(vg, cx, cy + 2.f, val.c_str(), nullptr);
+		nvgText(vg, cx, cy + 2.5f, val.c_str(), nullptr);
 	}
 };
 
@@ -1657,20 +1681,11 @@ struct FmOperatorWidget : ModuleWidget {
 
 		menu->addChild(createIndexSubmenuItem("FM Source Morph Shape",
 			{
-				"Sine",
-				"Triangle (BL)",
-				"Square (BL)",
-				"Saw (BL)",
-				"Pulse-Variable (HiTech)",
-				"Squelch (Psy) *",
-				"Ring-Sine (Dark) *",
-				"Formant 4:1 (Dark)",
-				"Fold (tanh)",
-				"Sync 2:1 (Dark/HiTech)",
-				"Sync 3:2 (Inharmonic)",
-				"PM-Fold (HiTech) *",
-				"Chebyshev T5",
-				"Noise-Sine (HiTech)"
+				"Sine", "Triangle (BL)", "Square (BL)", "Saw (BL)",
+				"Pulse-Variable (HiTech)", "Squelch (Psy) *",
+				"Ring-Sine (Dark) *", "Formant 4:1 (Dark)", "Fold (tanh)",
+				"Sync 2:1 (Dark/HiTech)", "Sync 3:2 (Inharmonic)",
+				"PM-Fold (HiTech) *", "Chebyshev T5", "Noise-Sine (HiTech)"
 			},
 			[m]() {
 				const float cur = m->params[FmOperator::SINE_WAVESHAPER_PARAM].getValue();
@@ -1918,6 +1933,21 @@ struct FmOperatorWidget : ModuleWidget {
 			[m](int idx) {
 				m->params[FmOperator::FM_MOD_PSY_CV_DEPTH_PARAM].setValue(
 					clamp(idx, 0, 4) * 0.25f);
+			}
+		));
+
+		menu->addChild(new MenuSeparator());
+
+		menu->addChild(createMenuItem(
+			"Reset to 2.6 defaults",
+			"Restores reshaped 2.0.0 knobs: FM Source Morph + Hard Fold Mix",
+			[m]() {
+				// SINE_WAVESHAPER_PARAM (5): 2.0.0 waveshaper bias (-0.5..1.5)
+				// -> 2.6 "FM Source Morph" 0..1.
+				m->params[FmOperator::SINE_WAVESHAPER_PARAM].setValue(0.f);
+				// RESAMPLE (14): 2.0.0 resample depth (default 0.8)
+				// -> 2.6 "Hard Fold Mix" 0..0.8.
+				m->params[FmOperator::RESAMPLE].setValue(0.f);
 			}
 		));
 	}

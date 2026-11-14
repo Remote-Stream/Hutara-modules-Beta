@@ -211,7 +211,8 @@ FmOperator::FmOperator() : displayChainPacked(0u) {
 	configOutput(SUB_OUTPUT,      "Sub Oscillator Output");
 }
 
-void FmOperator::onReset() {
+void FmOperator::onReset(const ResetEvent& e) {
+	Module::onReset(e);
 	phaseSine = phaseSaw = phaseTriangle = phaseSquare = 0.f;
 	prevPhaseSine = 0.f;
 	subPhase = 0.f;

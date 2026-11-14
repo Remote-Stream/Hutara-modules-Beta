@@ -746,7 +746,7 @@ struct FmOperator : Module {
 	// Module interface (implemented in .cpp)
 	// ============================================================
 	FmOperator();
-	void onReset() override;
+	void onReset(const ResetEvent& e) override;
 	void onSampleRateChange() override;
 	json_t* dataToJson() override;
 	void dataFromJson(json_t* rootJ) override;

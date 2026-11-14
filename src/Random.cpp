@@ -1425,7 +1425,8 @@ struct Hutara_Random_CV : Module {
     // =====================================================================
     // Reset
     // =====================================================================
-    void onReset() override {
+    void onReset(const ResetEvent& e) override {
+        Module::onReset(e);
         rngState = 0x7A31C9D5u;
         outputVoltage = 0.f;
         sampleNext = false;
@@ -1562,6 +1563,14 @@ struct Hutara_Random_CV : Module {
                 default: newIdx = 1; break;
             }
             params[RANDOM_GATE_SPEED_PARAM].setValue(static_cast<float>(newIdx));
+
+            // v1/2.0.0 patches carry no "enhancedMode" key. Without this, the
+            // configSwitch default (1 = Enhanced) silently booted legacy patches
+            // into Enhanced mode, activating ENVELOPE/EOC outputs and switching
+            // the display. Restore the mode the 2.0.0 patch was created in.
+            // New instances still default to Enhanced (configSwitch untouched).
+            if (!json_object_get(rootJ, "enhancedMode"))
+                params[ENHANCED_MODE_PARAM].setValue(0.f);
         }
 
         json_t* enhancedJ = json_object_get(rootJ, "enhancedMode");
