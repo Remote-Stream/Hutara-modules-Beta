@@ -1,23 +1,22 @@
-
 {
   "slug": "Hutara",
   "name": "Hutara",
   "version": "2.6.0",
-  "license": "GPL-3.0-only",
+  "license": "GPL-3.0-or-later",
   "brand": "Hutara",
   "author": "Hutara",
   "authorEmail": "hutaraa@gmail.com",
-  "authorUrl": "",
   "pluginUrl": "https://github.com/hutara/Hutara-modules",
-  "manualUrl": "https://github.com/hutara/Hutara-modules",
+  "manualUrl": "https://hutara.github.io/Hutara-modules-Doc/",
   "sourceUrl": "https://github.com/hutara/Hutara-modules",
   "donateUrl": "https://hiddenswap.com/pay/iH5HYcGi",
-  "changelogUrl": "",
+  "changelogUrl": "https://github.com/hutara/Hutara-modules/releases",
   "modules": [
     {
       "slug": "FmOperator",
       "name": "PsyOperator",
       "description": "Psychedelic synthesizer and VCO with FM synthesis, hard fold mix and waveshaping",
+      "keywords": "psyoperator",
       "tags": [
         "Oscillator",
         "Waveshaper"
@@ -26,7 +25,8 @@
     {
       "slug": "Hutara_Random_CV",
       "name": "Hutara Random",
-      "description": "Sample and hold, random CV and gate generator",
+      "description": "Dual-engine random CV: legacy sample & hold, 24-shape enhanced envelope, and clocked 16-step gate engine",
+      "keywords": "random, sample and hold, envelope, gate, psytrance, darkpsy, hitech",
       "tags": [
         "Random",
         "Envelope generator",
